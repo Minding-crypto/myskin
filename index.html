@@ -36,6 +36,10 @@ button,label,input,textarea,a{touch-action:manipulation}
 #savebar[hidden]{display:none}
 #saveBtn{width:100%;padding:15px;font-size:17px;font-weight:600;border-radius:14px;box-shadow:0 4px 14px rgba(47,111,94,.25)}
 #saveBtn.done{background:#3a9a6e}
+.thumb .flip{position:absolute;bottom:4px;left:4px;background:rgba(0,0,0,.55);color:#fff;border:0;border-radius:13px;height:26px;padding:0 9px;font-size:14px}
+.thumb.unsaved img{outline:2px dashed var(--accent);outline-offset:-2px}
+.hint{color:var(--accent);font-size:13px;margin:8px 0 0}
+.hint[hidden]{display:none}
 #toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 92px);transform:translate(-50%,20px);background:var(--accent);color:#fff;padding:10px 18px;border-radius:999px;font-weight:500;opacity:0;transition:opacity .2s,transform .2s;pointer-events:none;z-index:30;box-shadow:0 4px 14px rgba(0,0,0,.15)}
 #toast.show{opacity:1;transform:translate(-50%,0)}
 button.primary.done{background:#3a9a6e}
@@ -142,6 +146,7 @@ button:disabled{opacity:.6}
       </label>
       <input type="file" accept="image/*" multiple id="foodPhoto" class="vh">
       <div class="grid" id="pending"></div>
+      <p class="hint" id="foodHint" hidden>Not saved yet. Tap Save at the bottom · ⇋ flips a photo</p>
       <form id="foodForm">
         <input type="text" id="foodText" placeholder="What did you eat? (optional)" autocomplete="off" enterkeyhint="done">
       </form>
@@ -173,6 +178,8 @@ button:disabled{opacity:.6}
         <button id="plus" aria-label="One more">+</button>
       </div>
       <div class="grid" id="skinPhotos"></div>
+      <div class="grid" id="skinPending"></div>
+      <p class="hint" id="skinHint" hidden>Not saved yet. Tap Save at the bottom · ⇋ flips a photo</p>
       <label class="photoBtn wide" id="skinBtn"><input type="file" accept="image/*" multiple id="skinPhoto" class="vh"><span>📷 Add skin photo</span></label>
       <textarea id="notes" placeholder="Notes: deep/under-skin spots, stress, training…"></textarea>
       <div class="saved" id="saved"></div>
@@ -231,14 +238,41 @@ let queue = Promise.resolve();
 const enqueue = fn => (queue = queue.catch(() => {}).then(fn));
 
 /* ---------- photos (private Supabase Storage bucket) ---------- */
-async function shrink(file, max=1280, q=0.8){
+// Front (selfie) camera photos: iOS shows a mirrored preview but saves it un-mirrored.
+// We read the photo's info (EXIF "LensModel", e.g. "iPhone front camera") to mirror those back.
+async function isFrontCamera(file){
+  try {
+    const v = new DataView(await file.slice(0, 256 * 1024).arrayBuffer());
+    if (v.getUint16(0) !== 0xFFD8) return false;          // not a JPEG
+    let off = 2;
+    while (off + 10 < v.byteLength){
+      const marker = v.getUint16(off), len = v.getUint16(off + 2);
+      if (marker === 0xFFE1 && v.getUint32(off + 4) === 0x45786966){   // "Exif"
+        const t = off + 10, le = v.getUint16(t) === 0x4949;
+        const u16 = o => v.getUint16(o, le), u32 = o => v.getUint32(o, le);
+        const entries = ifd => { const n = u16(t + ifd); return [...Array(n)].map((_, i) => t + ifd + 2 + i * 12); };
+        const str = e => { const cnt = u32(e + 4), at = cnt > 4 ? t + u32(e + 8) : e + 8; let s = ''; for (let i = 0; i < cnt && at + i < v.byteLength; i++) s += String.fromCharCode(v.getUint8(at + i)); return s; };
+        const exifPtr = entries(u32(t + 4)).find(e => u16(e) === 0x8769);
+        if (exifPtr == null) return false;
+        const lens = entries(u32(exifPtr + 8)).find(e => u16(e) === 0xA434);
+        return lens != null && /front/i.test(str(lens));
+      }
+      if ((marker & 0xFF00) !== 0xFF00) break;
+      off += 2 + len;
+    }
+  } catch {}
+  return false;
+}
+async function shrink(file, mirror=false, max=1280, q=0.8){
   const tmp = URL.createObjectURL(file);
   try {
     const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = tmp; });
     const s = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
     const c = document.createElement('canvas');
     c.width = Math.round(img.naturalWidth * s); c.height = Math.round(img.naturalHeight * s);
-    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    const ctx = c.getContext('2d');
+    if (mirror){ ctx.translate(c.width, 0); ctx.scale(-1, 1); }
+    ctx.drawImage(img, 0, 0, c.width, c.height);
     return c.toDataURL('image/jpeg', q);
   } finally { URL.revokeObjectURL(tmp); }
 }
@@ -270,7 +304,7 @@ const saveDay = (date, patch) => enqueue(async () =>
   ok(await sb.from('days').upsert({user_id: uid, date, ...patch, updated_at: new Date().toISOString()}, {onConflict:'user_id,date'})));
 
 /* ---------- Day view ---------- */
-let cur = today(), day = emptyDay(cur), pendingPhotos = [], pendingDate = null, openedOn = cur;
+let cur = today(), day = emptyDay(cur), pendingPhotos = [], pendingDate = null, pendingSkin = [], pendingSkinDate = null, openedOn = cur;
 
 async function renderDay(){
   const t = today(); openedOn = t;
@@ -338,53 +372,78 @@ $('prev').onclick = () => go(shift(cur, -1));
 $('next').onclick = () => go(shift(cur, 1));
 $('date').onchange = e => { if (e.target.value) go(e.target.value); };
 
-// Food photos picked but not yet saved
-function renderPending(){
-  const g = $('pending'); g.innerHTML = '';
-  $('bigPhoto').hidden = pendingPhotos.length > 0;
-  if (!pendingPhotos.length) return;
-  pendingPhotos.forEach((p, i) => {
-    const w = document.createElement('div'); w.className = 'thumb';
-    const img = new Image(); img.src = p; img.onclick = () => view(p);
+// Photos picked but not saved yet: {file, mirror, url}
+async function makePending(file){
+  const mirror = await isFrontCamera(file);
+  return {file, mirror, url: await shrink(file, mirror)};
+}
+function pendingGrid(box, arr, rerender, addFor){
+  box.innerHTML = '';
+  arr.forEach((p, i) => {
+    const w = document.createElement('div'); w.className = 'thumb unsaved';
+    const img = new Image(); img.src = p.url; img.onclick = () => view(p.url);
     const x = document.createElement('button'); x.type = 'button'; x.className = 'x'; x.textContent = '✕'; x.setAttribute('aria-label','Remove photo');
-    x.onclick = () => { pendingPhotos.splice(i, 1); renderPending(); };
-    w.append(img, x); g.append(w);
+    x.onclick = () => { arr.splice(i, 1); rerender(); };
+    const fl = document.createElement('button'); fl.type = 'button'; fl.className = 'flip'; fl.textContent = '⇋'; fl.setAttribute('aria-label','Flip photo');
+    fl.onclick = async () => { p.mirror = !p.mirror; p.url = await shrink(p.file, p.mirror); rerender(); };
+    w.append(img, x, fl); box.append(w);
   });
-  const add = document.createElement('label'); add.className = 'addTile'; add.htmlFor = 'foodPhoto'; add.textContent = '+'; add.setAttribute('aria-label','Add more photos');
-  g.append(add);
+  if (addFor && arr.length){
+    const add = document.createElement('label'); add.className = 'addTile'; add.htmlFor = addFor; add.textContent = '+'; add.setAttribute('aria-label','Add more photos');
+    box.append(add);
+  }
+}
+function renderPending(){
+  $('bigPhoto').hidden = pendingPhotos.length > 0;
+  $('foodHint').hidden = !pendingPhotos.length;
+  pendingGrid($('pending'), pendingPhotos, renderPending, 'foodPhoto');
+}
+function renderSkinPending(){
+  $('skinHint').hidden = !pendingSkin.length;
+  pendingGrid($('skinPending'), pendingSkin, renderSkinPending, null);
 }
 $('foodPhoto').onchange = async e => {
   const files = [...e.target.files]; e.target.value = ''; if (!files.length) return;
   if (!pendingPhotos.length) pendingDate = cur;
   $('bigHint').innerHTML = '<b>⏳</b>Loading photos…';
   for (const f of files){
-    try { pendingPhotos.push(await shrink(f)); } catch { showErr("Couldn't read one of the photos."); }
+    try { pendingPhotos.push(await makePending(f)); } catch { showErr("Couldn't read one of the photos."); }
   }
   $('bigHint').innerHTML = '<b>📷</b>Tap to add food photos';
   renderPending();
 };
-const hasPending = () => pendingPhotos.length > 0 || $('foodText').value.trim() !== '';
+const hasPending = () => pendingPhotos.length > 0 || pendingSkin.length > 0 || $('foodText').value.trim() !== '';
 // Saves the food photos/text that haven't been saved yet. Returns true if something was added.
 async function savePending(){
   if (!hasPending()) return false;
-  const text = $('foodText').value.trim(), date = pendingDate || cur, n = new Date();
-  const paths = [];
-  for (const p of pendingPhotos) paths.push(await upload(p, date));
-  ok(await sb.from('foods').insert({user_id: uid, date, time: `${pad(n.getHours())}:${pad(n.getMinutes())}`, description: text, photos: paths}));
-  $('foodText').value = ''; $('foodText').blur();
-  pendingPhotos = []; pendingDate = null; renderPending();
+  const text = $('foodText').value.trim(), n = new Date();
+  if (pendingPhotos.length || text){
+    const date = pendingDate || cur, paths = [];
+    for (const p of pendingPhotos) paths.push(await upload(p.url, date));
+    ok(await sb.from('foods').insert({user_id: uid, date, time: `${pad(n.getHours())}:${pad(n.getMinutes())}`, description: text, photos: paths}));
+    $('foodText').value = ''; $('foodText').blur();
+    pendingPhotos = []; pendingDate = null; renderPending();
+  }
+  if (pendingSkin.length){
+    const date = pendingSkinDate || cur, paths = [];
+    for (const p of pendingSkin) paths.push(await upload(p.url, date));
+    const all = [...(date === cur ? day.skin_photos : (await getDay(date)).skin_photos), ...paths];
+    if (date === cur) day.skin_photos = all;
+    await saveDay(date, {skin_photos: all});
+    pendingSkin = []; pendingSkinDate = null; renderSkinPending();
+  }
   return true;
 }
 // Used before changing day/tab or signing out. Returns false if saving failed (so we stay put).
 async function saveBeforeLeaving(){
   await flushNotes();
   if (!hasPending()) return true;
-  try { await savePending(); toast('✓ Food saved'); return true; }
+  try { await savePending(); toast('✓ Saved'); return true; }
   catch (e) { failed(e); return false; }
 }
 async function saveAll(){
   const btn = $('saveBtn');
-  btn.disabled = true; btn.textContent = pendingPhotos.length ? 'Uploading photos…' : 'Saving…';
+  btn.disabled = true; btn.textContent = (pendingPhotos.length || pendingSkin.length) ? 'Uploading photos…' : 'Saving…';
   let added = false;
   try {
     await flushNotes();
@@ -438,17 +497,14 @@ function flushNotes(){
 
 $('skinPhoto').onchange = async e => {
   const files = [...e.target.files]; e.target.value = ''; if (!files.length) return;
-  const date = cur, label = $('skinBtn').querySelector('span');
-  label.textContent = '⏳ Uploading…';
-  try {
-    const paths = [];
-    for (const f of files) paths.push(await upload(await shrink(f), date));
-    if (date === cur){ day.skin_photos = [...day.skin_photos, ...paths]; await saveDay(date, {skin_photos: day.skin_photos}); }
-    else { const d = await getDay(date); await saveDay(date, {skin_photos: [...d.skin_photos, ...paths]}); }
-    toast('✓ Photo saved');
-  } catch (err) { failed(err); }
+  if (!pendingSkin.length) pendingSkinDate = cur;
+  const label = $('skinBtn').querySelector('span');
+  label.textContent = '⏳ Loading…';
+  for (const f of files){
+    try { pendingSkin.push(await makePending(f)); } catch { showErr("Couldn't read one of the photos."); }
+  }
   label.textContent = '📷 Add skin photo';
-  renderDay();
+  renderSkinPending();
 };
 
 /* ---------- History view ---------- */
