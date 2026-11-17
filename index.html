@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Skin Log">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#f6f5f2">
+<meta name="color-scheme" content="light">
+<title>Skin Log</title>
+<style>
+:root{--bg:#f6f5f2;--card:#fff;--ink:#1d1d1f;--muted:#8a8a8e;--line:#e6e4df;--accent:#2f6f5e;--accent-soft:#e3efea;--danger:#c0392b}
+:root{color-scheme:light}
+*{box-sizing:border-box}
+.vh{position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;pointer-events:none}
+.bigPhoto{display:flex;align-items:center;justify-content:center;width:100%;aspect-ratio:4/3;border:2px dashed var(--line);border-radius:14px;background:var(--bg);color:var(--muted);text-align:center;font-size:15px;line-height:1.5;cursor:pointer;overflow:hidden;position:relative}
+.bigPhoto span{font-size:15px}
+.bigPhoto span b{display:block;font-size:40px;font-weight:400}
+.bigPhoto img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.bigPhoto.has{border-style:solid}
+.bigPhoto .clear{position:absolute;top:8px;right:8px;z-index:2;background:rgba(0,0,0,.55);color:#fff;border:0;border-radius:50%;width:32px;height:32px;font-size:15px}
+#foods{margin-top:6px}
+.bigPhoto[hidden]{display:none}
+.addTile{display:flex;align-items:center;justify-content:center;aspect-ratio:1;border:2px dashed var(--line);border-radius:10px;color:var(--muted);font-size:30px;cursor:pointer;background:var(--bg)}
+#pending{margin-top:0}
+.fphotos{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+.fphotos img{width:40px;height:40px;border-radius:7px;object-fit:cover}
+#toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 28px);transform:translate(-50%,20px);background:var(--accent);color:#fff;padding:10px 18px;border-radius:999px;font-weight:500;opacity:0;transition:opacity .2s,transform .2s;pointer-events:none;z-index:30;box-shadow:0 4px 14px rgba(0,0,0,.15)}
+#toast.show{opacity:1;transform:translate(-50%,0)}
+button.primary.done{background:#3a9a6e}
+html,body{margin:0;background:var(--bg);color:var(--ink)}
+body{font:16px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;padding:0 env(safe-area-inset-right) calc(env(safe-area-inset-bottom) + 28px) env(safe-area-inset-left);-webkit-tap-highlight-color:transparent}
+header{position:sticky;top:0;z-index:5;background:var(--bg);padding:calc(env(safe-area-inset-top) + 12px) 16px 10px}
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px}
+h1{font-size:21px;margin:0;letter-spacing:-.01em}
+h2{font-size:15px;margin:0 0 12px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+nav{display:flex;flex:1;background:var(--line);border-radius:10px;padding:2px}
+nav button{flex:1;border:0;background:none;padding:7px 14px;border-radius:8px;font:inherit;font-size:14px;color:var(--ink)}
+nav button.on{background:var(--card);box-shadow:0 1px 2px rgba(0,0,0,.12)}
+.datebar{display:flex;gap:8px;margin-top:10px}
+.datebar button{flex:0 0 44px;height:40px;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:10px;font-size:20px}
+.datebar button:disabled{opacity:.35}
+.datebar input{flex:1;height:40px;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:10px;font:inherit;text-align:center;padding:0 8px;-webkit-appearance:none;appearance:none}
+#dateLabel{display:block;text-align:center;color:var(--muted);font-size:13px;margin-top:6px}
+main{padding:4px 16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:14px}
+.muted{color:var(--muted);font-size:14px;margin:0}
+.food{display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--line)}
+.food:last-child{border-bottom:0}
+.food img,.nophoto{width:56px;height:56px;border-radius:10px;object-fit:cover;flex:0 0 56px;background:var(--accent-soft)}
+.nophoto{display:flex;align-items:center;justify-content:center;font-size:22px}
+.ftext{flex:1;min-width:0}
+.ftext b{display:block;font-weight:500;overflow-wrap:anywhere}
+.ftext small{color:var(--muted)}
+.x{border:0;background:none;color:var(--muted);font-size:16px;padding:8px}
+form{display:flex;gap:8px;margin-top:12px}
+input[type=text],textarea{font:inherit;font-size:16px;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px}
+form input[type=text]{flex:1;min-width:0}
+button.primary,.btn,.photoBtn{border:0;border-radius:10px;padding:10px 14px;font:inherit;font-size:15px;background:var(--accent);color:#fff;display:inline-flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;white-space:nowrap}
+.photoBtn{background:var(--accent-soft);color:var(--accent)}
+.photoBtn.wide{width:100%;margin-top:10px}
+.btn.ghost{background:var(--accent-soft);color:var(--accent)}
+.bigPhoto img[hidden],.bigPhoto .clear[hidden]{display:none}
+.counter{display:flex;align-items:center;justify-content:space-between}
+.counter button{width:64px;height:64px;border-radius:50%;border:0;background:var(--accent-soft);color:var(--accent);font-size:32px;line-height:1}
+.counter div{text-align:center}
+.big{display:block;font-size:44px;font-weight:600;line-height:1.1;font-variant-numeric:tabular-nums}
+.counter small{color:var(--muted)}
+.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:14px}
+.grid:empty{display:none}
+.thumb{position:relative;aspect-ratio:1}
+.thumb img{width:100%;height:100%;object-fit:cover;border-radius:10px}
+.thumb .x{position:absolute;top:2px;right:2px;background:rgba(0,0,0,.5);color:#fff;border-radius:50%;width:26px;height:26px;padding:0;font-size:13px}
+textarea{width:100%;margin-top:10px;min-height:70px;resize:vertical}
+.saved{font-size:12px;color:var(--muted);height:16px;margin-top:4px;text-align:right}
+svg.chart{width:100%;height:auto;display:block}
+svg .bar{fill:var(--accent)}
+svg .none{fill:var(--line)}
+svg text{fill:var(--muted);font-size:8px}
+.dayrow{display:flex;align-items:center;gap:12px;cursor:pointer}
+.badge{flex:0 0 46px;height:46px;border-radius:12px;background:var(--accent-soft);color:var(--accent);display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:600;font-size:18px;line-height:1}
+.badge small{font-size:9px;font-weight:500;margin-top:2px}
+.dinfo{flex:1;min-width:0}
+.dinfo b{display:block;font-weight:500}
+.dinfo small{color:var(--muted);display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.minis{display:flex;gap:4px}
+.minis img{width:34px;height:34px;border-radius:7px;object-fit:cover}
+.row{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+#viewer{position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:20;display:flex;align-items:center;justify-content:center;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
+#viewer[hidden]{display:none}
+#viewer img{max-width:100%;max-height:100%;object-fit:contain}
+#err{background:#fde8e6;color:#8a1f15;padding:12px;border-radius:10px;margin:12px 16px}
+#err[hidden]{display:none}
+input[type=email],input[type=password]{font:inherit;font-size:16px;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:12px}
+form.col{flex-direction:column}
+#login{padding-top:calc(env(safe-area-inset-top) + 40px)}
+button:disabled{opacity:.6}
+.loading{color:var(--muted);font-size:14px;padding:6px 0}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+<header id="hdr" hidden>
+  <div class="top">
+    <nav><button data-tab="day" class="on">Day</button><button data-tab="history">History</button></nav>
+  </div>
+  <div id="datebar">
+    <div class="datebar"><button id="prev" aria-label="Previous day">‹</button><input type="date" id="date"><button id="next" aria-label="Next day">›</button></div>
+    <span id="dateLabel"></span>
+  </div>
+</header>
+<div id="err" hidden></div>
+<main>
+  <section id="login" hidden>
+    <div class="card">
+      <h2>Sign in</h2>
+      <form id="loginForm" class="col">
+        <input type="email" id="email" placeholder="Email" autocomplete="email" required>
+        <input type="password" id="pw" placeholder="Password" autocomplete="current-password" required>
+        <button class="primary" type="submit">Sign in</button>
+      </form>
+      <p class="muted" id="loginMsg" style="margin-top:10px"></p>
+    </div>
+  </section>
+
+  <section id="day" hidden>
+    <div class="card">
+      <h2>Food</h2>
+      <label class="bigPhoto" id="bigPhoto" for="foodPhoto">
+        <span id="bigHint"><b>📷</b>Tap to add food photos</span>
+      </label>
+      <input type="file" accept="image/*" multiple id="foodPhoto" class="vh">
+      <div class="grid" id="pending"></div>
+      <form id="foodForm">
+        <input type="text" id="foodText" placeholder="What did you eat?" autocomplete="off">
+        <button class="primary" type="submit" id="addBtn">Add</button>
+      </form>
+      <div id="foods"></div>
+    </div>
+    <div class="card">
+      <h2>Water</h2>
+      <div class="counter">
+        <button id="wMinus" aria-label="One glass less">−</button>
+        <div><span id="water" class="big">0</span><small id="waterSub">glasses · 0 L</small></div>
+        <button id="wPlus" aria-label="One glass more">+</button>
+      </div>
+      <p class="muted" style="text-align:center;margin-top:8px">1 glass = 250 ml</p>
+    </div>
+    <div class="card">
+      <h2>Sleep</h2>
+      <div class="counter">
+        <button id="sMinus" aria-label="Half an hour less">−</button>
+        <div><span id="sleep" class="big">–</span><small>hours slept last night</small></div>
+        <button id="sPlus" aria-label="Half an hour more">+</button>
+      </div>
+      <p class="muted" style="text-align:center;margin-top:8px">Each tap = 30 min</p>
+    </div>
+    <div class="card">
+      <h2>Skin</h2>
+      <div class="counter">
+        <button id="minus" aria-label="One less">−</button>
+        <div><span id="count" class="big">–</span><small>pimples today</small></div>
+        <button id="plus" aria-label="One more">+</button>
+      </div>
+      <div class="grid" id="skinPhotos"></div>
+      <label class="photoBtn wide" id="skinBtn"><input type="file" accept="image/*" multiple id="skinPhoto" class="vh"><span>📷 Add skin photo</span></label>
+      <textarea id="notes" placeholder="Notes: deep/under-skin spots, stress, training…"></textarea>
+      <div class="saved" id="saved"></div>
+    </div>
+  </section>
+
+  <section id="history" hidden>
+    <div class="card"><h2>Pimples · last 30 days</h2><div id="chart"></div><p class="muted" style="margin-top:6px">Tap a bar to open that day. Grey = not logged.</p></div>
+    <div id="days"></div>
+    <div class="card">
+      <h2>Account</h2>
+      <p class="muted">Signed in as <b id="who"></b>. Your data is saved in your Supabase project.</p>
+      <div class="row"><button class="btn ghost" id="signOut">Sign out</button></div>
+    </div>
+  </section>
+</main>
+<div id="viewer" hidden><img alt=""></div>
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script>
+/* ======== 1. PUT YOUR SUPABASE DETAILS HERE ========
+   Supabase dashboard → Project Settings → API (or "Connect")
+   The anon / publishable key is safe to put here: the
+   row-level security rules in setup.sql protect your data. */
+const SUPABASE_URL = 'https://boicfgesssxsjeakkana.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_wFYu9dtdMXVHcxccHQD88g_dnEH8J08';
+/* =================================================== */
+
+const $ = id => document.getElementById(id);
+let sb, uid = null;
+
+/* ---------- small helpers ---------- */
+const pad = n => String(n).padStart(2, '0');
+const iso = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const today = () => iso(new Date());
+const parse = s => { const [y,m,d] = s.split('-').map(Number); return new Date(y, m-1, d); };
+const shift = (s, n) => { const d = parse(s); d.setDate(d.getDate()+n); return iso(d); };
+const nice = s => parse(s).toLocaleDateString(undefined, {weekday:'short', day:'numeric', month:'short', year: parse(s).getFullYear() === new Date().getFullYear() ? undefined : 'numeric'});
+const uuid = () => crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2);
+const ok = r => { if (r.error) throw r.error; return r.data; };
+
+function showErr(msg){ const e = $('err'); e.textContent = msg; e.hidden = false; window.scrollTo(0, 0); }
+function hideErr(){ $('err').hidden = true; }
+const failed = e => showErr("Couldn't save — check your internet. (" + (e?.message || e) + ")");
+let toastTimer;
+function toast(msg){
+  const t = $('toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 1600);
+}
+function view(src){ const v = $('viewer'); v.querySelector('img').src = src; v.hidden = false; }
+$('viewer').onclick = () => { $('viewer').hidden = true; };
+
+// Saves run one after another, so fast taps land in the right order
+let queue = Promise.resolve();
+const enqueue = fn => (queue = queue.catch(() => {}).then(fn));
+
+/* ---------- photos (private Supabase Storage bucket) ---------- */
+async function shrink(file, max=1280, q=0.8){
+  const tmp = URL.createObjectURL(file);
+  try {
+    const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = tmp; });
+    const s = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+    const c = document.createElement('canvas');
+    c.width = Math.round(img.naturalWidth * s); c.height = Math.round(img.naturalHeight * s);
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    return c.toDataURL('image/jpeg', q);
+  } finally { URL.revokeObjectURL(tmp); }
+}
+async function upload(dataUrl, date){
+  const blob = await (await fetch(dataUrl)).blob();
+  const path = `${uid}/${date}/${uuid()}.jpg`;
+  ok(await sb.storage.from('photos').upload(path, blob, {contentType:'image/jpeg'}));
+  return path;
+}
+const removeFiles = paths => paths.length ? sb.storage.from('photos').remove(paths) : null;
+// Private photos are shown through short-lived signed links (cached ~50 min)
+const linkCache = new Map();
+async function links(paths){
+  const need = [...new Set(paths)].filter(p => !(linkCache.get(p)?.exp > Date.now()));
+  if (need.length){
+    const r = await sb.storage.from('photos').createSignedUrls(need, 3600);
+    (r.data || []).forEach(d => d.signedUrl && linkCache.set(d.path, {url: d.signedUrl, exp: Date.now() + 50*60e3}));
+  }
+  return p => linkCache.get(p)?.url || '';
+}
+
+/* ---------- database ---------- */
+const emptyDay = date => ({date, pimples:null, water:0, sleep:null, notes:'', skin_photos:[]});
+async function getDay(date){
+  return ok(await sb.from('days').select('*').eq('date', date).maybeSingle()) || emptyDay(date);
+}
+// Only the fields passed in are changed
+const saveDay = (date, patch) => enqueue(async () =>
+  ok(await sb.from('days').upsert({user_id: uid, date, ...patch, updated_at: new Date().toISOString()}, {onConflict:'user_id,date'})));
+
+/* ---------- Day view ---------- */
+let cur = today(), day = emptyDay(cur), pendingPhotos = [], openedOn = cur;
+
+async function renderDay(){
+  const t = today(); openedOn = t;
+  const date = cur;
+  $('date').value = date; $('date').max = t;
+  $('next').disabled = date >= t;
+  $('dateLabel').textContent = date === t ? 'Today' : date === shift(t,-1) ? 'Yesterday' : nice(date);
+
+  let foods, d;
+  try {
+    [foods, d] = await Promise.all([
+      sb.from('foods').select('*').eq('date', date).order('time').order('created_at').then(ok),
+      getDay(date)
+    ]);
+  } catch (e) { showErr("Couldn't load — check your internet. (" + (e?.message || e) + ")"); return; }
+  if (date !== cur) return;   // you moved to another day while this was loading
+  hideErr();
+  day = d;
+  const link = await links([...foods.flatMap(f => f.photos), ...day.skin_photos]);
+
+  const box = $('foods'); box.innerHTML = '';
+  if (!foods.length) box.innerHTML = '<p class="muted">Nothing logged yet.</p>';
+  for (const f of foods){
+    const el = document.createElement('div'); el.className = 'food';
+    const ps = f.photos || [];
+    if (ps.length){ const img = new Image(); img.src = link(ps[0]); img.onclick = () => view(img.src); el.append(img); }
+    else { const ph = document.createElement('div'); ph.className = 'nophoto'; ph.textContent = '🍽'; el.append(ph); }
+    const tx = document.createElement('div'); tx.className = 'ftext';
+    const b = document.createElement('b'); b.textContent = f.description || '(photo only)';
+    const sm = document.createElement('small'); sm.textContent = f.time + (ps.length > 1 ? ` · ${ps.length} photos` : '');
+    tx.append(b, sm);
+    if (ps.length > 1){
+      const strip = document.createElement('div'); strip.className = 'fphotos';
+      ps.slice(1).forEach(p => { const i = new Image(); i.src = link(p); i.onclick = () => view(i.src); strip.append(i); });
+      tx.append(strip);
+    }
+    const x = document.createElement('button'); x.className = 'x'; x.textContent = '✕'; x.setAttribute('aria-label','Delete');
+    x.onclick = async () => {
+      if (!confirm('Delete this food entry?')) return;
+      try { ok(await sb.from('foods').delete().eq('id', f.id)); await removeFiles(ps); renderDay(); } catch (e) { failed(e); }
+    };
+    el.append(tx, x); box.append(el);
+  }
+
+  $('count').textContent = day.pimples ?? '–';
+  showWater(); showSleep();
+  if (noteTimer) day.notes = $('notes').value;   // typing in progress: keep it
+  else { $('notes').value = day.notes || ''; $('saved').textContent = ''; }
+  const g = $('skinPhotos'); g.innerHTML = '';
+  day.skin_photos.forEach(p => {
+    const w = document.createElement('div'); w.className = 'thumb';
+    const img = new Image(); img.src = link(p); img.onclick = () => view(img.src);
+    const x = document.createElement('button'); x.className = 'x'; x.textContent = '✕'; x.setAttribute('aria-label','Delete photo');
+    x.onclick = async e => {
+      e.stopPropagation(); if (!confirm('Delete this photo?')) return;
+      day.skin_photos = day.skin_photos.filter(q => q !== p);
+      try { await saveDay(date, {skin_photos: day.skin_photos}); await removeFiles([p]); renderDay(); } catch (e) { failed(e); }
+    };
+    w.append(img, x); g.append(w);
+  });
+}
+
+async function go(date){ await flushNotes(); cur = date > today() ? today() : date; renderDay(); }
+$('prev').onclick = () => go(shift(cur, -1));
+$('next').onclick = () => go(shift(cur, 1));
+$('date').onchange = e => { if (e.target.value) go(e.target.value); };
+
+// Food photos picked but not yet saved
+function renderPending(){
+  const g = $('pending'); g.innerHTML = '';
+  $('bigPhoto').hidden = pendingPhotos.length > 0;
+  if (!pendingPhotos.length) return;
+  pendingPhotos.forEach((p, i) => {
+    const w = document.createElement('div'); w.className = 'thumb';
+    const img = new Image(); img.src = p; img.onclick = () => view(p);
+    const x = document.createElement('button'); x.type = 'button'; x.className = 'x'; x.textContent = '✕'; x.setAttribute('aria-label','Remove photo');
+    x.onclick = () => { pendingPhotos.splice(i, 1); renderPending(); };
+    w.append(img, x); g.append(w);
+  });
+  const add = document.createElement('label'); add.className = 'addTile'; add.htmlFor = 'foodPhoto'; add.textContent = '+'; add.setAttribute('aria-label','Add more photos');
+  g.append(add);
+}
+$('foodPhoto').onchange = async e => {
+  const files = [...e.target.files]; e.target.value = ''; if (!files.length) return;
+  $('bigHint').innerHTML = '<b>⏳</b>Loading photos…';
+  for (const f of files){
+    try { pendingPhotos.push(await shrink(f)); } catch { showErr("Couldn't read one of the photos."); }
+  }
+  $('bigHint').innerHTML = '<b>📷</b>Tap to add food photos';
+  renderPending();
+};
+$('foodForm').onsubmit = async e => {
+  e.preventDefault();
+  const text = $('foodText').value.trim();
+  if (!text && !pendingPhotos.length) { $('foodText').placeholder = 'Type what you ate, or add a photo'; $('foodText').focus(); return; }
+  const btn = $('addBtn'), date = cur, n = new Date();
+  btn.disabled = true; btn.textContent = pendingPhotos.length ? 'Uploading…' : 'Saving…';
+  try {
+    const paths = [];
+    for (const p of pendingPhotos) paths.push(await upload(p, date));
+    ok(await sb.from('foods').insert({user_id: uid, date, time: `${pad(n.getHours())}:${pad(n.getMinutes())}`, description: text, photos: paths}));
+  } catch (err) { btn.disabled = false; btn.textContent = 'Add'; failed(err); return; }
+  $('foodText').value = ''; $('foodText').placeholder = 'What did you eat?'; $('foodText').blur();
+  pendingPhotos = []; renderPending();
+  btn.disabled = false; btn.textContent = 'Saved ✓'; btn.classList.add('done');
+  setTimeout(() => { btn.textContent = 'Add'; btn.classList.remove('done'); }, 1500);
+  toast('✓ Food saved');
+  renderDay();
+};
+
+// Counters: screen updates straight away, save happens in the background
+function bump(field, n, start){
+  day[field] = Math.max(0, (day[field] ?? start) + n);
+  saveDay(cur, {[field]: day[field]}).catch(failed);
+}
+$('plus').onclick = () => { bump('pimples', 1, 0); $('count').textContent = day.pimples; };
+$('minus').onclick = () => { bump('pimples', -1, 0); $('count').textContent = day.pimples; };
+function showWater(){
+  const g = day.water || 0;
+  $('water').textContent = g;
+  $('waterSub').textContent = `${g === 1 ? 'glass' : 'glasses'} · ${(g * 0.25).toFixed(2).replace(/\.?0+$/, '')} L`;
+}
+$('wPlus').onclick = () => { bump('water', 1, 0); showWater(); };
+$('wMinus').onclick = () => { bump('water', -1, 0); showWater(); };
+function showSleep(){ $('sleep').textContent = day.sleep == null ? '–' : Number(day.sleep); }
+// First tap starts at 7 h
+$('sPlus').onclick = () => { bump('sleep', day.sleep == null ? 0 : 0.5, 7); showSleep(); };
+$('sMinus').onclick = () => { bump('sleep', day.sleep == null ? 0 : -0.5, 7); showSleep(); };
+
+let noteTimer = null;
+async function saveNotes(date, text){
+  await saveDay(date, {notes: text});
+  if (date === cur) day.notes = text;
+}
+$('notes').oninput = () => {
+  clearTimeout(noteTimer);
+  $('saved').textContent = '…';
+  const date = cur;
+  noteTimer = setTimeout(async () => {
+    noteTimer = null;
+    try { await saveNotes(date, $('notes').value); $('saved').textContent = 'Saved'; } catch (e) { $('saved').textContent = ''; failed(e); }
+  }, 600);
+};
+function flushNotes(){
+  if (noteTimer){ clearTimeout(noteTimer); noteTimer = null; return saveNotes(day.date, $('notes').value).catch(failed); }
+}
+
+$('skinPhoto').onchange = async e => {
+  const files = [...e.target.files]; e.target.value = ''; if (!files.length) return;
+  const date = cur, label = $('skinBtn').querySelector('span');
+  label.textContent = '⏳ Uploading…';
+  try {
+    const paths = [];
+    for (const f of files) paths.push(await upload(await shrink(f), date));
+    if (date === cur){ day.skin_photos = [...day.skin_photos, ...paths]; await saveDay(date, {skin_photos: day.skin_photos}); }
+    else { const d = await getDay(date); await saveDay(date, {skin_photos: [...d.skin_photos, ...paths]}); }
+    toast('✓ Photo saved');
+  } catch (err) { failed(err); }
+  label.textContent = '📷 Add skin photo';
+  renderDay();
+};
+
+/* ---------- History view ---------- */
+async function renderHistory(){
+  let days, foods;
+  try {
+    [days, foods] = await Promise.all([
+      sb.from('days').select('*').then(ok),
+      sb.from('foods').select('date,time,description,photos').then(ok)
+    ]);
+  } catch (e) { showErr("Couldn't load — check your internet. (" + (e?.message || e) + ")"); return; }
+  hideErr();
+  const by = {};
+  days.forEach(d => by[d.date] = {...d, foods:[]});
+  foods.forEach(f => (by[f.date] ??= {...emptyDay(f.date), foods:[]}).foods.push(f));
+
+  // chart
+  const N = 30, W = 300, H = 120, pb = 16, pt = 12, t = today();
+  const dates = [...Array(N)].map((_, i) => shift(t, i - N + 1));
+  const vals = dates.map(d => by[d]?.pimples ?? null);
+  const max = Math.max(5, ...vals.filter(v => v != null));
+  const bw = W / N;
+  let s = `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Pimples per day"><text x="0" y="8">${max}</text>`;
+  vals.forEach((v, i) => {
+    const x = (i * bw + 1).toFixed(1), w = (bw - 2).toFixed(1);
+    s += `<rect x="${x}" y="${pt}" width="${w}" height="${H-pb-pt}" fill="transparent" data-date="${dates[i]}"/>`;
+    if (v == null) s += `<rect x="${x}" y="${H-pb-2}" width="${w}" height="2" class="none" data-date="${dates[i]}"/>`;
+    else { const h = Math.max(1.5, (H-pb-pt) * v / max); s += `<rect x="${x}" y="${(H-pb-h).toFixed(1)}" width="${w}" height="${h.toFixed(1)}" rx="1.5" class="bar" data-date="${dates[i]}"/>`; }
+  });
+  const short = d => parse(d).toLocaleDateString(undefined, {day:'numeric', month:'short'});
+  s += `<text x="0" y="${H-3}">${short(dates[0])}</text><text x="${W}" y="${H-3}" text-anchor="end">Today</text></svg>`;
+  $('chart').innerHTML = s;
+  $('chart').querySelectorAll('[data-date]').forEach(r => r.onclick = () => { cur = r.dataset.date; tab('day'); });
+
+  // day list
+  const list = Object.values(by)
+    .filter(d => d.foods.length || d.skin_photos.length || d.pimples != null || d.water || d.sleep != null || d.notes)
+    .sort((a, b) => b.date.localeCompare(a.date));
+  const thumbsOf = d => [...d.foods.flatMap(f => f.photos || []), ...d.skin_photos].slice(0, 3);
+  const link = await links(list.flatMap(thumbsOf));
+  const box = $('days'); box.innerHTML = '';
+  if (!list.length) box.innerHTML = '<div class="card"><p class="muted">No days logged yet.</p></div>';
+  for (const d of list){
+    const card = document.createElement('div'); card.className = 'card dayrow';
+    const badge = document.createElement('div'); badge.className = 'badge';
+    badge.innerHTML = `${d.pimples ?? '–'}<small>spots</small>`;
+    const info = document.createElement('div'); info.className = 'dinfo';
+    const b = document.createElement('b'); b.textContent = nice(d.date);
+    const sm = document.createElement('small');
+    sm.textContent = d.foods.length ? d.foods.sort((a,b) => a.time.localeCompare(b.time)).map(f => f.description || 'photo').join(' · ') : 'No food logged';
+    const wt = document.createElement('small'); wt.textContent = `💧 ${d.water || 0} glasses · 😴 ${d.sleep == null ? '–' : Number(d.sleep)} h`;
+    info.append(b, sm, wt);
+    const minis = document.createElement('div'); minis.className = 'minis';
+    thumbsOf(d).forEach(p => { const i = new Image(); i.src = link(p); minis.append(i); });
+    card.append(badge, info, minis);
+    card.onclick = () => { cur = d.date; tab('day'); };
+    box.append(card);
+  }
+}
+
+/* ---------- tabs ---------- */
+async function tab(name){
+  await flushNotes();
+  document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.tab === name));
+  $('day').hidden = name !== 'day';
+  $('history').hidden = name !== 'history';
+  $('datebar').hidden = name !== 'day';
+  window.scrollTo(0, 0);
+  name === 'day' ? renderDay() : renderHistory();
+}
+document.querySelectorAll('nav button').forEach(b => b.onclick = () => tab(b.dataset.tab));
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && uid && !$('day').hidden && cur === openedOn && openedOn !== today()) go(today());
+});
+
+/* ---------- sign in ---------- */
+function showLogin(){
+  uid = null;
+  $('hdr').hidden = $('day').hidden = $('history').hidden = true;
+  $('login').hidden = false;
+}
+function enter(user){
+  uid = user.id;
+  $('who').textContent = user.email;
+  $('login').hidden = true; $('hdr').hidden = false;
+  cur = today(); tab('day');
+}
+$('loginForm').onsubmit = async e => {
+  e.preventDefault();
+  const btn = e.target.querySelector('button'); btn.disabled = true; $('loginMsg').textContent = 'Signing in…';
+  const r = await sb.auth.signInWithPassword({email: $('email').value.trim(), password: $('pw').value});
+  btn.disabled = false;
+  if (r.error){ $('loginMsg').textContent = r.error.message; return; }
+  $('loginMsg').textContent = ''; $('pw').value = '';
+  enter(r.data.user);
+};
+$('signOut').onclick = async () => { await flushNotes(); await sb.auth.signOut(); showLogin(); };
+
+(async () => {
+  if (!window.supabase){ showErr("Couldn't load Supabase — check your internet and reload."); return; }
+  if (SUPABASE_URL.includes('YOUR-PROJECT')){ showErr('Setup needed: put your Supabase URL and key at the top of the <script> in this file.'); return; }
+  sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  const { data: { session } } = await sb.auth.getSession();
+  session ? enter(session.user) : showLogin();
+  sb.auth.onAuthStateChange((event) => { if (event === 'SIGNED_OUT') showLogin(); });
+})();
+</script>
+</body>
+</html>
